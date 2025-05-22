@@ -26,7 +26,7 @@ asr = pipeline(
 
 # Example: transcribe a local audio file (replace with your file path)
 # audio_file = "/Users/mukul.upadhyay/Documents/Hackathon/soulspeak/scripts/test-file-2.wav"
-audio_file = "/Users/mukul.upadhyay/Documents/Hackathon/soulspeak/scripts/harvard.wav"
+audio_file = "-------***-------"
 
 # Run transcription
 result = asr(audio_file)
