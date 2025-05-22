@@ -2,7 +2,7 @@ import datetime
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException
 from fastapi.responses import JSONResponse
 from voice_note.service import get_audio_by_id
-from .service import calculate_average_scores, create_emotion_analysis, get_all_audio, get_all_emotion_analysis, get_emotion_by_id, save_audio_file
+from .service import calculate_average_scores, create_emotion_analysis, delete_audio_by_id, get_all_audio, get_all_emotion_analysis, get_emotion_by_id, save_audio_file
 
 voice_note_router = APIRouter()
 
@@ -24,7 +24,7 @@ async def fetch_audio(audio_id: str):
     return audio_doc
 
 
-@voice_note_router.get("/transcription")
+@voice_note_router.get("/get_all_audio")
 async def fetch_audio():
     audio_doc = await get_all_audio()
     if not audio_doc:
@@ -69,3 +69,11 @@ async def get_average_emotions():
 
     # Return as JSON
     return JSONResponse(content=average_scores)
+
+
+@voice_note_router.delete("/delete-audio/{audio_id}")
+async def delete_audio(audio_id: str):
+    deleted_audio = await delete_audio_by_id(audio_id)
+    if not delete_audio:
+        raise HTTPException(status_code=404, detail="Audio not found")
+    return deleted_audio

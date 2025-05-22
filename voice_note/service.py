@@ -1,16 +1,15 @@
 import datetime
-from typing import Dict, List
+from typing import Dict
 from uuid import uuid4
 import os
 from .schema import AudioInDB
 from llm_models.transcript import asr_pipeline
-from db.utils import DB  # Import your DB class
+from db.utils import DB
 from transformers import pipeline
 from fastapi import UploadFile
 import tempfile
 from uuid import uuid4
 from voice_note.schema import AudioInDB  # Assuming this is your Pydantic model
-from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorGridFSBucket
 
 
 UPLOAD_DIR = "uploads"
@@ -149,3 +148,18 @@ async def calculate_average_scores() -> Dict[str, float]:
     }
 
     return average_scores
+
+
+async def delete_audio_by_id(audio_id: str):
+    document = await db.read("audio_files", audio_id)
+    if not document:
+        return {"Audio not found"}
+    
+    deleted_data = {
+        "title": document["title"],
+        "id": document["_id"]
+    }
+    
+    deleted_count = await db.delete("audio_files", audio_id)
+
+    return {"deleted_count": deleted_count, "deleted_data": deleted_data}
