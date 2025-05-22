@@ -16,5 +16,5 @@ Use below command to install dependencies:
 
 To run main backend:
 
-    uvicorn main:app
+    uvicorn main:app --reload
     

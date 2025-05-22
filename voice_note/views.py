@@ -1,7 +1,7 @@
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException
 from fastapi.responses import JSONResponse
 from voice_note.service import get_audio_by_id
-from .service import analyze_emotion, save_audio_file
+from .service import analyze_emotion, get_all_audio_by_id, save_audio_file
 
 voice_note_router = APIRouter()
 
@@ -18,6 +18,14 @@ async def upload_audio(
 @voice_note_router.get("/audio/{audio_id}")
 async def fetch_audio(audio_id: str):
     audio_doc = await get_audio_by_id(audio_id)
+    if not audio_doc:
+        raise HTTPException(status_code=404, detail="Audio not found")
+    return audio_doc
+
+
+@voice_note_router.get("/transcription")
+async def fetch_audio():
+    audio_doc = await get_all_audio_by_id()
     if not audio_doc:
         raise HTTPException(status_code=404, detail="Audio not found")
     return audio_doc
