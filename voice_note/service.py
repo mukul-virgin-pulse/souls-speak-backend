@@ -4,6 +4,9 @@ import shutil
 from .schema import AudioInDB
 from llm_models.transcript import asr_pipeline
 from db.utils import DB  # Import your DB class
+from transformers import pipeline
+from fastapi import UploadFile
+import tempfile
 
 UPLOAD_DIR = "uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
@@ -44,3 +47,23 @@ async def get_audio_by_id(audio_id: str) -> AudioInDB:
         return None
     document["id"] = document.pop("_id")
     return AudioInDB(**document)
+
+
+# Load the model once when the service is initialized
+emotion_pipeline = pipeline(
+    "audio-classification",
+    model="firdhokk/speech-emotion-recognition-with-openai-whisper-large-v3"
+)
+
+
+def analyze_emotion(audio_file: UploadFile):
+    # Save the uploaded file to a temporary location
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp:
+        tmp.write(audio_file.file.read())
+        tmp_path = tmp.name
+
+    # Run the model on the saved file
+    predictions = emotion_pipeline(tmp_path)
+
+    # Format the results
+    return [{"label": pred["label"], "score": round(pred["score"], 4)} for pred in predictions]
