@@ -6,10 +6,11 @@ class AudioMetadata(BaseModel):
     description: Optional[str]
 
 class AudioInDB(BaseModel):
-    id: str
+    _id: Optional[str]
     filename: Optional[str]
     title: Optional[str]
     description: Optional[str]
     transcription: str
     # file_data: str  # Base64-encoded audio
     content_type: str
+    created_at: str
