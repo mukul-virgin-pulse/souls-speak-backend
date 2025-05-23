@@ -11,6 +11,7 @@ class AudioInDB(BaseModel):
     title: Optional[str]
     description: Optional[str]
     transcription: str
-    # file_data: str  # Base64-encoded audio
+    file_id: Optional[str]
     content_type: str
     created_at: str
+    predictions: Optional[list]

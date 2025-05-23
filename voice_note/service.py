@@ -9,7 +9,11 @@ from transformers import pipeline
 from fastapi import UploadFile
 import tempfile
 from uuid import uuid4
-from voice_note.schema import AudioInDB  # Assuming this is your Pydantic model
+from voice_note.schema import AudioInDB
+import gridfs
+from pymongo import MongoClient
+from fastapi.responses import StreamingResponse
+from bson.objectid import ObjectId
 
 
 UPLOAD_DIR = "uploads"
@@ -18,17 +22,17 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 # Initialize DB instance
 MONGO_URL = os.getenv("MONGO_URL", "mongodb://localhost:27017")
 db = DB(MONGO_URL, "audio_db")
-# fs = AsyncIOMotorGridFSBucket(db)
+
+client = MongoClient(MONGO_URL)
+aDB = client["audio_store"]
+fs = gridfs.GridFS(aDB)
+fs_files_collection = aDB["fs.files"]
 
 
 # MongoDB and GridFS setup
 
 
 async def save_audio_file(file, title: str, description: str):
-    # Upload file to GridFS
-    # file_id = await fs.upload_from_stream(file.filename, file.file)
-
-    # Save file temporarily for transcription
     file.file.seek(0)
     temp_path = f"/tmp/{uuid4()}.wav"
     with open(temp_path, "wb") as temp_file:
@@ -38,6 +42,13 @@ async def save_audio_file(file, title: str, description: str):
     result = asr_pipeline(temp_path)
     transcription = result["text"]
 
+    # Analyze emotion
+    predictions = predictions = emotion_pipeline(temp_file.name)
+    [{"label": pred["label"], "score": round(pred["score"], 4)} for pred in predictions]
+
+    # Upload to GridFS
+    file_id = fs.put(file.file, filename=file.filename, content_type=file.content_type)
+
     # Prepare metadata document
     audio_doc = {
         "filename": file.filename,
@@ -45,12 +56,16 @@ async def save_audio_file(file, title: str, description: str):
         "description": description,
         "transcription": transcription,
         "created_at": datetime.datetime.utcnow(),
-        "content_type": file.content_type
+        "content_type": file.content_type,
+        "predictions": predictions,
+        "file_id": str(file_id)
     }
 
     inserted_id = await db.create("audio_files", audio_doc)
+
     audio_doc["_id"] = inserted_id
     audio_doc["created_at"] = audio_doc["created_at"].isoformat()
+
     return AudioInDB(**audio_doc)
 
 
@@ -70,6 +85,7 @@ async def get_all_audio():
     
     for doc in document:
         doc["created_at"] = doc["created_at"].isoformat()
+        doc["file_id"] = str(doc["file_id"])
     return document
 
 
@@ -163,3 +179,52 @@ async def delete_audio_by_id(audio_id: str):
     deleted_count = await db.delete("audio_files", audio_id)
 
     return {"deleted_count": deleted_count, "deleted_data": deleted_data}
+
+
+async def download_file(self, file_id: str):
+    files_cursor = fs_files_collection.find()
+    files = []
+    for file_doc in files_cursor:
+        files.append({
+            "file_id": str(file_doc["_id"]),
+            "filename": file_doc.get("filename"),
+            "length": file_doc.get("length"),
+            "uploadDate": file_doc.get("uploadDate").isoformat() if file_doc.get("uploadDate") else None,
+            "contentType": file_doc.get("metadata", {}).get("contentType") if file_doc.get("metadata") else None,
+        })
+    return files
+
+
+def get_all_audio_files():
+    files = []
+    
+    for file_doc in fs_files_collection.find():
+        files.append({
+            "file_id": str(file_doc["_id"]),
+            "filename": file_doc.get("filename"),
+            "length": file_doc.get("length"),
+            "uploadDate": file_doc.get("uploadDate").isoformat() if file_doc.get("uploadDate") else None,
+            "contentType": file_doc.get("metadata", {}).get("contentType") if file_doc.get("metadata") else None,
+        })
+    return files
+
+async def get_playable_audio(file_id):     
+    oid = ObjectId(file_id)
+    grid_out = fs.get(oid)
+    return StreamingResponse(
+        grid_out,
+        media_type=grid_out.content_type or "application/octet-stream",
+        headers={"Content-Disposition": f'inline; filename="{grid_out.filename}"'}
+    )
+
+
+async def get_all_list_audio():
+    audio_files = await db.find("audio_files", {})
+    if not audio_files:
+        return {"No Audio files found"}
+    
+    for doc in audio_files:
+        doc["created_at"] = doc["created_at"].isoformat()
+        doc["file_id"] = str(doc["file_id"])
+
+    return audio_files
